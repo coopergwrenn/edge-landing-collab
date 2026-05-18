@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/*
+ * Edge palette is set as inline CSS custom properties on the <div data-theme="edge">
+ * wrapper inside app/edge/layout.tsx — so they only apply to /edge and don't bleed
+ * into a parent shell. See app/edge/layout.tsx for the source of truth on the palette.
+ *
+ * Base page styles (warm off-white, dark warm ink) below — apply globally because
+ * this standalone project has only one route family.
+ */
+
+:root {
+  --background: #FAFAF7;
+  --foreground: #0E0F0B;
+}
+
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "ss01" on, "cv11" on;
+}
+
+/* Prevent FOUT on the Inter / next-font load — invisible until fonts are ready.
+ * Mirrors the discipline in the production layout; comment it out if you want
+ * to debug a flash-of-unstyled state during edits. */
+html {
+  visibility: hidden;
+}
+html.fonts-ready {
+  visibility: visible;
+}

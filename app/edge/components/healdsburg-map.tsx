@@ -111,6 +111,11 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
         constrainDuringPan: true,
         minZoomImageRatio: 1.0,
         homeFillsViewer: true,
+        // Cream backdrop = same as the page `--cream`. If the camera ever
+        // shows a sliver outside the image (during resize transients, or
+        // before the idle pan's clamp kicks in), it blends with the page
+        // bg instead of revealing the SkyBackdrop's sky-blue band.
+        background: "#f4ede0",
         mouseNavEnabled: true,
         gestureSettingsMouse: {
           scrollToZoom: false,
@@ -138,6 +143,11 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
 
       let mapState: "home" | "animating" | "focused" = "home";
       let stateTimer: ReturnType<typeof setTimeout> | null = null;
+      // Idle pan: while the camera sits at home, drift the center along a
+      // slow Lissajous so the hero feels alive. Stopped whenever the user
+      // (or the cinematic) takes control. constrainDuringPan + visibilityRatio
+      // automatically clamp the motion at the image edges.
+      let idleRafId: number | null = null;
 
       viewer.addOnceHandler("open", () => {
         if (cancelled) return;
@@ -167,7 +177,13 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
           focusVp.y
         );
 
-        viewer.viewport.zoomTo(homeZoom, null, true);
+        // Rest the camera slightly tighter than homeFillsViewer so there's
+        // guaranteed slack on BOTH axes for the idle Lissajous drift. Without
+        // this, whichever axis matches the viewer aspect would have zero
+        // pan room and the drift would collapse to a single-axis sway.
+        const IDLE_ZOOM_MULT = 1.05;
+        const restingZoom = homeZoom * IDLE_ZOOM_MULT;
+        viewer.viewport.zoomTo(restingZoom, null, true);
         viewer.viewport.panTo(homeCenter, true);
 
         const getAnimMs = () => {
@@ -178,9 +194,67 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
           );
         };
 
+        const IDLE_AMP_X_MAX = 0.04;
+        const IDLE_AMP_Y_MAX = 0.025;
+        const IDLE_PERIOD_X_MS = 30_000;
+        const IDLE_PERIOD_Y_MS = 42_000;
+
+        // Image extent in viewport coordinates — used to clamp the idle pan
+        // amplitude so the camera never strays past the image edge (which
+        // would otherwise show the transparent OSD canvas / page bg).
+        const imageBounds = tiledImage.getBounds();
+
+        const stopIdlePan = () => {
+          if (idleRafId !== null) {
+            cancelAnimationFrame(idleRafId);
+            idleRafId = null;
+          }
+        };
+
+        const startIdlePan = () => {
+          if (idleRafId !== null) return; // already running
+          const t0 = performance.now();
+          const step = (now: number) => {
+            if (mapState !== "home") {
+              idleRafId = null;
+              return;
+            }
+            // Slack is computed against the CURRENT viewport bounds, not the
+            // raw homeBounds — since the camera rests at restingZoom > home,
+            // both axes have non-zero slack and the drift can move on both.
+            // Recomputing each frame also keeps it correct across resize.
+            const cb = viewer.viewport.getBounds();
+            const maxDx = Math.max(0, (imageBounds.width - cb.width) / 2);
+            const maxDy = Math.max(0, (imageBounds.height - cb.height) / 2);
+            // Keep a 10% margin so the camera never quite kisses the edge.
+            const ampX = Math.min(IDLE_AMP_X_MAX, maxDx * 0.9);
+            const ampY = Math.min(IDLE_AMP_Y_MAX, maxDy * 0.9);
+
+            const dt = now - t0;
+            const target = new OSD.Point(
+              homeCenter.x +
+                ampX * Math.sin((dt / IDLE_PERIOD_X_MS) * 2 * Math.PI),
+              homeCenter.y +
+                ampY *
+                  Math.sin(
+                    (dt / IDLE_PERIOD_Y_MS) * 2 * Math.PI + Math.PI / 4
+                  )
+            );
+            // `immediately = true` writes the center directly each frame so
+            // the spring doesn't fight the sin-driven target.
+            viewer.viewport.panTo(target, true);
+            idleRafId = requestAnimationFrame(step);
+          };
+          idleRafId = requestAnimationFrame(step);
+        };
+
+        // Kick off the ambient drift now that the camera is parked at home.
+        startIdlePan();
+
         const playCinematic = () => {
           if (mapState !== "home") return;
           mapState = "animating";
+          stopIdlePan();
 
           viewer.viewport.zoomTo(focusZoom);
           viewer.viewport.panTo(focusViewportPoint);
@@ -218,13 +292,18 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
           if (mapState !== "focused") return;
           mapState = "animating";
 
-          viewer.viewport.zoomTo(homeZoom);
+          // Return to the slightly-tighter resting zoom (not raw homeZoom)
+          // so the idle drift can resume without a visible zoom-out step.
+          viewer.viewport.zoomTo(restingZoom);
           viewer.viewport.panTo(homeCenter);
 
           const animMs = getAnimMs();
           if (stateTimer) clearTimeout(stateTimer);
           stateTimer = setTimeout(() => {
-            if (mapState === "animating") mapState = "home";
+            if (mapState === "animating") {
+              mapState = "home";
+              startIdlePan();
+            }
           }, animMs);
         };
 
@@ -349,6 +428,7 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
             clearTimeout(stateTimer);
             stateTimer = null;
           }
+          stopIdlePan();
           mapState = "focused";
         };
         viewer.addHandler("canvas-drag", onUserNavigate);
@@ -367,6 +447,7 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
           window.removeEventListener("touchend", onTouchEnd, {
             capture: true,
           } as EventListenerOptions);
+          stopIdlePan();
           if (stateTimer) clearTimeout(stateTimer);
         };
       });
@@ -387,6 +468,7 @@ export function HealdsburgMap({ children }: { children: ReactNode }) {
     <section
       ref={wrapRef}
       className="relative w-full h-[100dvh] min-h-[600px] overflow-hidden"
+      style={{ background: "#f4ede0" }}
       data-screen-label="healdsburg-map"
     >
       {/* Fallback static crop — shown until OSD has opened the tile source.

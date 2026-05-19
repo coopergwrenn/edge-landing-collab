@@ -5,6 +5,7 @@ interface Partner {
   logo: ReactNode;
   sub: string;
   role: string;
+  href: string;
 }
 
 const PARTNERS: Partner[] = [
@@ -29,6 +30,7 @@ const PARTNERS: Partner[] = [
     ),
     sub: "OpenClaw provisioning",
     role: "A persistent agent instance, configured and running, for every resident on day one. The infrastructure that means you don't have to be technical to have an agent.",
+    href: "https://instaclaw.io/",
   },
   {
     logo: (
@@ -57,6 +59,7 @@ const PARTNERS: Partner[] = [
     ),
     sub: "Community knowledge graph",
     role: "Local events, the schedule, what's happening across Esmeralda — so your agent knows the village, not just your profile.",
+    href: "https://www.geobrowser.io/",
   },
   {
     logo: (
@@ -72,6 +75,7 @@ const PARTNERS: Partner[] = [
     ),
     sub: "Social discovery protocol",
     role: "The layer that connects agents, allows for negotiations between them, and surfaces opportunities. When your agent finds someone worth meeting, Index is how it got there.",
+    href: "https://index.network/",
   },
   {
     logo: (
@@ -93,6 +97,7 @@ const PARTNERS: Partner[] = [
     ),
     sub: "Governance & coordination",
     role: "Governance and coordination tools for crypto-native communities building toward Network States. Co-created with Edge City. Open source.",
+    href: "https://www.simplefi.tech/",
   },
 ];
 
@@ -128,7 +133,15 @@ export function TechPartners() {
               className="flex flex-col gap-2.5 pb-4 min-h-[56px] justify-center"
               style={{ borderBottom: "1px solid rgba(26,24,20,0.08)" }}
             >
-              {p.logo}
+              <a
+                href={p.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={p.sub}
+                className="inline-flex self-start transition-opacity hover:opacity-70"
+              >
+                {p.logo}
+              </a>
               <div
                 className="font-sans text-xs"
                 style={{

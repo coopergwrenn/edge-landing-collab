@@ -69,9 +69,9 @@ function HeroCta({
   const className =
     "inline-flex items-center gap-2.5 px-7 py-3.5 rounded-full text-sm font-bold uppercase whitespace-nowrap transition-colors";
   const style = {
-    background: "var(--edge-ink)",
-    color: "var(--cream)",
-    border: "1px solid var(--edge-ink)",
+    background: "var(--cream)",
+    color: "var(--edge-ink)",
+    border: "1px solid var(--cream)",
     letterSpacing: "0.06em",
   } as React.CSSProperties;
 
